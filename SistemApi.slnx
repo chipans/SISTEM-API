@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SistemApi.Api/SistemApi.Api.csproj" />
+  <Project Path="SistemApi.Application/SistemApi.Application.csproj" />
+  <Project Path="SistemApi.Domain/SistemApi.Domain.csproj" />
+  <Project Path="SistemApi.Infrastructure/SistemApi.Infrastructure.csproj" />
+</Solution>
