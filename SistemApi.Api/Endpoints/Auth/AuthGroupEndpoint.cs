@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using SistemApi.Api.Endpoints.Common;
 using SistemApi.Application.Dto.Auth;
+using SistemApi.Application.Dto.User;
 using SistemApi.Application.Services.Auth;
+using SistemApi.Application.Services.User;
+using SistemApi.Domain.Repositories;
 
 namespace SistemApi.Api.Endpoints.Auth;
 
