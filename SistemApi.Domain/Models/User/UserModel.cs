@@ -16,11 +16,11 @@
                 throw new ArgumentException("El email no es valido.", nameof(email));
             if (string.IsNullOrWhiteSpace(password))
                 throw new ArgumentException("EL hash de contraseña es requerido.", nameof(password));
-            if (string.IsNullOrWhiteSpace(Name))
+            if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("El nombre completo es requerido.", nameof(name));
 
             Id = id;
-            Email = email;
+            Email = email.Trim().ToLowerInvariant();
             Password = password;
             Name = name;
             Role = role;
