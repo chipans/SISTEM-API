@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using SistemApi.Api.Endpoints.Auth;
-using SistemApi.Api.Endpoints.Dish;
+using SistemApi.Api.Endpoints.User;
 using SistemApi.Infrastructure.Ioc;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,9 +14,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(SistemWebCorsPolicy, policy =>
     {
-        policy.WithOrigins("http://localhost:4200")
+        policy.WithOrigins("http://localhost:4200", "https://sistem-web.netlify.app")
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -57,11 +58,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtSection["Issuer"],
             ValidAudience = jwtSection["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Key"]!))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Key"]!)),
+            ClockSkew = TimeSpan.Zero
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("RequireAdmin", policy => policy.RequireRole("Administrador"));
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -75,7 +78,7 @@ app.UseCors(SistemWebCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapDishGroupEndpoint();
 app.MapAuthGroupEndpoint();
+app.MapUserGroupEndpoint();
 
 app.Run();

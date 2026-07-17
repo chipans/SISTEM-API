@@ -14,11 +14,10 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
         builder.Property(u => u.Email).IsRequired().HasMaxLength(200);
         builder.HasIndex(u => u.Email).IsUnique();
 
-        builder.Property(u => u.FullName).IsRequired().HasMaxLength(200);
-        builder.Property(u => u.GoogleId).HasMaxLength(100);
+        builder.Property(u => u.Password).IsRequired();
+        builder.Property(u => u.Name).IsRequired().HasMaxLength(200);
+        builder.Property(u => u.Role).IsRequired();
 
-        builder.HasIndex(u => u.GoogleId)
-            .IsUnique()
-            .HasFilter("\"GoogleId\" IS NOT NULL");
+
     }
 }
