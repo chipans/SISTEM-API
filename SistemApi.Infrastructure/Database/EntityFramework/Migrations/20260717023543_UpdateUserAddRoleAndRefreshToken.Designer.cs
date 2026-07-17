@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SistemApi.Infrastructure.Database.EntityFramework.Context;
@@ -11,9 +12,11 @@ using SistemApi.Infrastructure.Database.EntityFramework.Context;
 namespace SistemApi.Infrastructure.Database.EntityFramework.Migrations
 {
     [DbContext(typeof(SistemApiDbContext))]
-    partial class SistemApiDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260717023543_UpdateUserAddRoleAndRefreshToken")]
+    partial class UpdateUserAddRoleAndRefreshToken
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
