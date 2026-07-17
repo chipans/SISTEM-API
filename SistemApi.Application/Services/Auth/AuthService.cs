@@ -1,81 +1,107 @@
-using System.Net;
+﻿using System.Net;
 using SistemApi.Application.Dto.Auth;
 using SistemApi.Domain.Commom;
+using SistemApi.Domain.Models.Auth;
 using SistemApi.Domain.Models.User;
 using SistemApi.Domain.Repositories;
 using SistemApi.Domain.Services;
 
 namespace SistemApi.Application.Services.Auth;
 
-public class AuthService
+public class AuthService : IAuthService
 {
+    private const int RefreshTokenLifetimeMinutes = 3;
+
     private readonly IUserRepository _userRepository;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
-    private readonly IGoogleTokenValidator _googleTokenValidator;
+    private readonly IRefreshTokenGenerator _refreshTokenGenerator;
+    private readonly ITokenHasher _tokenHasher;
 
     public AuthService(
         IUserRepository userRepository,
+        IRefreshTokenRepository refreshTokenRepository,
         IPasswordHasher passwordHasher,
         IJwtTokenGenerator jwtTokenGenerator,
-        IGoogleTokenValidator googleTokenValidator)
+        IRefreshTokenGenerator refreshTokenGenerator,
+        ITokenHasher tokenHasher)
     {
         _userRepository = userRepository;
+        _refreshTokenRepository = refreshTokenRepository;
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
-        _googleTokenValidator = googleTokenValidator;
+        _refreshTokenGenerator = refreshTokenGenerator;
+        _tokenHasher = tokenHasher;
     }
 
-    public async Task<Result<AuthResponseDto>> RegisterAsync(RegisterRequestDto request)
-    {
-        if (await _userRepository.ExistsByEmailAsync(request.Email))
-            return Result<AuthResponseDto>.Failure(["Ya existe una cuenta con este email."], HttpStatusCode.Conflict);
-
-        var passwordHash = _passwordHasher.Hash(request.Password);
-        var user = new UserModel(0, request.Email, passwordHash, request.FullName, null, true);
-        var created = await _userRepository.CreateAsync(user);
-
-        var token = _jwtTokenGenerator.GenerateToken(created);
-        return Result<AuthResponseDto>.Success(new AuthResponseDto(token, created.Email, created.FullName), HttpStatusCode.Created);
-    }
-
-    public async Task<Result<AuthResponseDto>> LoginAsync(LoginRequestDto request)
+    public async Task<Result<AuthResultDto>> LoginAsync(LoginRequestDto request)
     {
         var user = await _userRepository.GetByEmailAsync(request.Email);
-        if (user is null || string.IsNullOrEmpty(user.PasswordHash) || !_passwordHasher.Verify(request.Password, user.PasswordHash))
-            return Result<AuthResponseDto>.Failure(["Email o contraseña incorrectos."], HttpStatusCode.Unauthorized);
+        if (user is null || !_passwordHasher.Verify(request.Password, user.Password))
+            return Result<AuthResultDto>.Failure(["Email o contraseña incorrectos."], HttpStatusCode.Unauthorized);
 
-        if (!user.IsActive)
-            return Result<AuthResponseDto>.Failure(["Esta cuenta está desactivada."], HttpStatusCode.Forbidden);
+        if (!user.IsActivate)
+            return Result<AuthResultDto>.Failure(["Esta cuenta está desactivada."], HttpStatusCode.Forbidden);
 
-        var token = _jwtTokenGenerator.GenerateToken(user);
-        return Result<AuthResponseDto>.Success(new AuthResponseDto(token, user.Email, user.FullName));
+        var authResult = await IssueTokensAsync(user);
+        return Result<AuthResultDto>.Success(authResult);
     }
 
-    public async Task<Result<AuthResponseDto>> LoginWithGoogleAsync(GoogleLoginRequestDto request)
+    public async Task<Result<AuthResultDto>> RefreshAsync(string refreshToken)
     {
-        var googleInfo = await _googleTokenValidator.ValidateAsync(request.IdToken);
-        if (googleInfo is null)
-            return Result<AuthResponseDto>.Failure(["El token de Google no es válido."], HttpStatusCode.Unauthorized);
+        if (string.IsNullOrWhiteSpace(refreshToken))
+            return Result<AuthResultDto>.Failure(["Sesión no válida."], HttpStatusCode.Unauthorized);
 
-        var user = await _userRepository.GetByGoogleIdAsync(googleInfo.GoogleId)
-                   ?? await _userRepository.GetByEmailAsync(googleInfo.Email);
+        var tokenHash = _tokenHasher.Hash(refreshToken);
+        var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(tokenHash);
 
-        if (user is null)
+        if (storedToken is null || !storedToken.IsActive(DateTime.UtcNow))
+            return Result<AuthResultDto>.Failure(["La sesión ha expirado."], HttpStatusCode.Unauthorized);
+
+        var user = await _userRepository.GetByIdAsync(storedToken.UserId);
+        if (user is null || !user.IsActivate)
+            return Result<AuthResultDto>.Failure(["La sesión ha expirado."], HttpStatusCode.Unauthorized);
+
+        storedToken.Revoke(DateTime.UtcNow);
+        await _refreshTokenRepository.UpdateAsync(storedToken);
+
+        var authResult = await IssueTokensAsync(user);
+        return Result<AuthResultDto>.Success(authResult);
+    }
+
+    public async Task<Result<bool>> LogoutAsync(string refreshToken)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+            return Result<bool>.Success(true);
+
+        var tokenHash = _tokenHasher.Hash(refreshToken);
+        var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(tokenHash);
+
+        if (storedToken is not null && storedToken.RevokedAt is null)
         {
-            var newUser = new UserModel(0, googleInfo.Email, null, googleInfo.FullName, googleInfo.GoogleId, true);
-            user = await _userRepository.CreateAsync(newUser);
-        }
-        else if (user.GoogleId is null)
-        {
-            user.LinkGoogleAccount(googleInfo.GoogleId);
-            user = await _userRepository.UpdateAsync(user) ?? user;
+            storedToken.Revoke(DateTime.UtcNow);
+            await _refreshTokenRepository.UpdateAsync(storedToken);
         }
 
-        if (!user.IsActive)
-            return Result<AuthResponseDto>.Failure(["Esta cuenta está desactivada."], HttpStatusCode.Forbidden);
+        return Result<bool>.Success(true);
+    }
 
-        var token = _jwtTokenGenerator.GenerateToken(user);
-        return Result<AuthResponseDto>.Success(new AuthResponseDto(token, user.Email, user.FullName));
+    private async Task<AuthResultDto> IssueTokensAsync(UserModel user)
+    {
+        var accessToken = _jwtTokenGenerator.GenerateToken(user);
+        var refreshTokenPlain = _refreshTokenGenerator.GenerateToken();
+        var refreshTokenHash = _tokenHasher.Hash(refreshTokenPlain);
+
+        var refreshTokenModel = new RefreshTokenModel(
+            0,
+            user.Id,
+            refreshTokenHash,
+            DateTime.UtcNow.AddMinutes(RefreshTokenLifetimeMinutes),
+            DateTime.UtcNow);
+
+        await _refreshTokenRepository.CreateAsync(refreshTokenModel);
+
+        return new AuthResultDto(accessToken, refreshTokenPlain, user.Email, user.Name, user.Role.ToString());
     }
 }
