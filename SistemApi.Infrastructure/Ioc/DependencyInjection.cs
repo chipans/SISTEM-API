@@ -28,7 +28,7 @@ public static class DependencyInjection
         services.AddSingleton<ITokenHasher, TokenHasher>();
         
 
-        services.AddScoped<IAuthService, IAuthService>();
+        services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
 
         return services;
