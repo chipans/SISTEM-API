@@ -15,6 +15,12 @@ public class UserRepository : IUserRepository
         _context = context;
     }
 
+    public async Task<List<UserModel>> GetAllAsync()
+    {
+        var entities = await _context.User.AsNoTracking().ToListAsync();
+        return entities.Select(ToModel).ToList();
+    }
+
     public async Task<UserModel?> GetByIdAsync(int id)
     {
         var entity = await _context.User.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id);
@@ -25,12 +31,6 @@ public class UserRepository : IUserRepository
     {
         var normalized = email.Trim().ToLowerInvariant();
         var entity = await _context.User.AsNoTracking().FirstOrDefaultAsync(u => u.Email == normalized);
-        return entity is null ? null : ToModel(entity);
-    }
-
-    public async Task<UserModel?> GetByGoogleIdAsync(string googleId)
-    {
-        var entity = await _context.User.AsNoTracking().FirstOrDefaultAsync(u => u.GoogleId == googleId);
         return entity is null ? null : ToModel(entity);
     }
 
@@ -45,10 +45,10 @@ public class UserRepository : IUserRepository
         var entity = new UserEntity
         {
             Email = user.Email,
-            PasswordHash = user.PasswordHash,
-            FullName = user.FullName,
-            GoogleId = user.GoogleId,
-            IsActive = user.IsActive,
+            Password = user.Password,
+            Name = user.Name,
+            Role = (int)user.Role,
+            IsActivate = user.IsActivate,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -64,15 +64,15 @@ public class UserRepository : IUserRepository
         if (entity is null) return null;
 
         entity.Email = user.Email;
-        entity.PasswordHash = user.PasswordHash;
-        entity.FullName = user.FullName;
-        entity.GoogleId = user.GoogleId;
-        entity.IsActive = user.IsActive;
+        entity.Password = user.Password;
+        entity.Name = user.Name;
+        entity.Role = (int)user.Role;
+        entity.IsActivate = user.IsActivate;
 
         await _context.SaveChangesAsync();
         return ToModel(entity);
     }
 
     private static UserModel ToModel(UserEntity entity) =>
-        new(entity.Id, entity.Email, entity.PasswordHash, entity.FullName, entity.GoogleId, entity.IsActive, entity.CreatedAt);
+        new(entity.Id, entity.Email, entity.Password, entity.Name, (RoleType)entity.Role, entity.IsActivate, entity.CreatedAt);
 }
