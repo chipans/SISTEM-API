@@ -9,6 +9,8 @@ using SistemApi.Infrastructure.Database.EntityFramework.Context;
 using SistemApi.Infrastructure.Database.EntityFramework.Repositories.Auth;
 using SistemApi.Infrastructure.Database.EntityFramework.Repositories.User;
 using SistemApi.Infrastructure.Security;
+using SistemApi.Infrastructure.BackgroundServices;
+using Microsoft.Extensions.Hosting;
 
 namespace SistemApi.Infrastructure.Ioc;
 
@@ -30,7 +32,8 @@ public static class DependencyInjection
 
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
-
+           
+        services.AddHostedService<RefreshTokenCleanupService>(); 
         return services;
     }
 }
