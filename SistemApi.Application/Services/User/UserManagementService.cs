@@ -53,6 +53,20 @@ public class UserManagementService : IUserManagementService
         return Result<UserResponseDto>.Success(ToResponseDto(updated!));
     }
 
+    public async Task<Result<UserResponseDto>> DeactivateAsync(int id)
+    {
+        var user = await _userRepository.GetByIdAsync(id);
+        if (user is null)
+            return Result<UserResponseDto>.Failure(["El usuario no fue encontrado."], HttpStatusCode.NotFound);
+
+        user.Deactivate();
+        var updated = await _userRepository.UpdateAsync(user);
+
+        await _refreshTokenRepository.DeleteAllByUserIdAsync(id);
+
+        return Result<UserResponseDto>.Success(ToResponseDto(updated!));
+    }
+
     public async Task<Result<UserResponseDto>> ChangeRoleAsync(int targetUserId, int currentUserId, ChangeRoleDto request)
     {
         if (targetUserId == currentUserId)
@@ -76,20 +90,6 @@ public class UserManagementService : IUserManagementService
 
         user.Activate();
         var updated = await _userRepository.UpdateAsync(user);
-
-        return Result<UserResponseDto>.Success(ToResponseDto(updated!));
-    }
-
-    public async Task<Result<UserResponseDto>> DeactivateAsync(int id)
-    {
-        var user = await _userRepository.GetByIdAsync(id);
-        if (user is null)
-            return Result<UserResponseDto>.Failure(["El usuario no fue encontrado."], HttpStatusCode.NotFound);
-
-        user.Deactivate();
-        var updated = await _userRepository.UpdateAsync(user);
-
-        await _refreshTokenRepository.RevokeAllByUserIdAsync(id, DateTime.UtcNow);
 
         return Result<UserResponseDto>.Success(ToResponseDto(updated!));
     }

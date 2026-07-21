@@ -28,8 +28,7 @@ public class RefreshTokenRepository : IRefreshTokenRepository
             UserId = refreshToken.UserId,
             TokenHash = refreshToken.TokenHash,
             ExpiresAt = refreshToken.ExpiresAt,
-            CreatedAt = DateTime.UtcNow,
-            RevokedAt = refreshToken.RevokedAt
+            CreatedAt = DateTime.UtcNow
         };
 
         await _context.RefreshToken.AddAsync(entity);
@@ -38,27 +37,35 @@ public class RefreshTokenRepository : IRefreshTokenRepository
         return ToModel(entity);
     }
 
-    public async Task<RefreshTokenModel?> UpdateAsync(RefreshTokenModel refreshToken)
-    {
-        var entity = await _context.RefreshToken.FirstOrDefaultAsync(rt => rt.Id == refreshToken.Id);
-        if (entity is null) return null;
-
-        entity.TokenHash = refreshToken.TokenHash;
-        entity.ExpiresAt = refreshToken.ExpiresAt;
-        entity.RevokedAt = refreshToken.RevokedAt;
-
-        await _context.SaveChangesAsync();
-        return ToModel(entity);
-    }
-
-    public async Task RevokeAllByUserIdAsync(int userId, DateTime revokedAt)
+    public async Task RotateAsync(int id, string newTokenHash, DateTime newExpiresAt)
     {
         await _context.RefreshToken
-            .Where(rt => rt.UserId == userId && rt.RevokedAt == null)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(rt => rt.RevokedAt, revokedAt));
+            .Where(rt => rt.Id == id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(rt => rt.TokenHash, newTokenHash)
+                .SetProperty(rt => rt.ExpiresAt, newExpiresAt));
     }
 
+    public async Task DeleteAsync(int id)
+    {
+        await _context.RefreshToken
+            .Where(rt => rt.Id == id)
+            .ExecuteDeleteAsync();
+    }
+    public async Task DeleteAllByUserIdAsync(int userId)
+    {
+        await _context.RefreshToken
+            .Where(rt => rt.UserId == userId)
+            .ExecuteDeleteAsync();
+    }
 
+    public async Task DeleteExpiredAsync(DateTime utcNow)
+    {
+        await _context.RefreshToken
+            .Where(rt => rt.ExpiresAt < utcNow)
+            .ExecuteDeleteAsync();
+    }
+    
     private static RefreshTokenModel ToModel(RefreshTokenEntity entity) =>
         new(entity.Id, entity.UserId, entity.TokenHash, entity.ExpiresAt, entity.CreatedAt, entity.RevokedAt);
 }

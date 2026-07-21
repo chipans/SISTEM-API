@@ -43,6 +43,8 @@ public class AuthService : IAuthService
 
         if (!user.IsActivate)
             return Result<AuthResultDto>.Failure(["Esta cuenta está desactivada."], HttpStatusCode.Forbidden);
+        
+        await _refreshTokenRepository.DeleteAllByUserIdAsync(user.Id);
 
         var authResult = await IssueTokensAsync(user);
         return Result<AuthResultDto>.Success(authResult);
@@ -62,11 +64,15 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetByIdAsync(storedToken.UserId);
         if (user is null || !user.IsActivate)
             return Result<AuthResultDto>.Failure(["La sesión ha expirado."], HttpStatusCode.Unauthorized);
+        
+        var accessToken = _jwtTokenGenerator.GenerateToken(user);
+        var newRefreshTokenPlain = _refreshTokenGenerator.GenerateToken();
+        var newRefreshTokenHash = _tokenHasher.Hash(newRefreshTokenPlain);
+        var newExpiresAt = DateTime.UtcNow.AddMinutes(RefreshTokenLifetimeMinutes);
+        
+        await _refreshTokenRepository.RotateAsync(storedToken.Id, newRefreshTokenHash, newExpiresAt);
 
-        storedToken.Revoke(DateTime.UtcNow);
-        await _refreshTokenRepository.UpdateAsync(storedToken);
-
-        var authResult = await IssueTokensAsync(user);
+        var authResult = new AuthResultDto(accessToken, newRefreshTokenPlain, user.Email, user.Name, user.Role.ToString());
         return Result<AuthResultDto>.Success(authResult);
     }
 
@@ -78,11 +84,8 @@ public class AuthService : IAuthService
         var tokenHash = _tokenHasher.Hash(refreshToken);
         var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(tokenHash);
 
-        if (storedToken is not null && storedToken.RevokedAt is null)
-        {
-            storedToken.Revoke(DateTime.UtcNow);
-            await _refreshTokenRepository.UpdateAsync(storedToken);
-        }
+        if (storedToken is not null)
+            await _refreshTokenRepository.DeleteAsync(storedToken.Id);
 
         return Result<bool>.Success(true);
     }

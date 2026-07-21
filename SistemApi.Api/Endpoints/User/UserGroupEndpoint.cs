@@ -14,11 +14,7 @@ public static class UserGroupEndpoint
         group.MapGet("/", async (IUserManagementService service) =>
             (await service.GetAllAsync()).ToApiResult())
             .RequireAuthorization("RequireAdmin");
-
-        group.MapPost("/", async (CreateUserDto request, IUserManagementService service) =>
-            (await service.CreateAsync(request)).ToApiResult())
-            .RequireAuthorization("RequireAdmin");
-
+        
         group.MapPut("/{id:int}", async (int id, UpdateUserDto request, IUserManagementService service) =>
             (await service.UpdateAsync(id, request)).ToApiResult())
             .RequireAuthorization("RequireAdmin");
